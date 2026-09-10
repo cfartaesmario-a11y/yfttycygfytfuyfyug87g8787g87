@@ -1,4 +1,13 @@
 <!DOCTYPE html>
+<!--
+  GRAN PREMIO YASSIR - multijugador en tiempo real
+  ------------------------------------------------
+  Ya viene conectado al proyecto Firebase "marela-8d4e5" (Realtime Database, europe-west1).
+  Solo hace falta que las reglas de esa base de datos sean:
+       { "rules": { "salas": { "$sala": { ".read": true, ".write": true } } } }
+  Sube este archivo como index.html a GitHub Pages y listo.
+  Si algun dia fallan los scripts de Firebase, cambia el numero de version 12.17.1 por el actual.
+-->
 <html lang="es">
 <head>
 <meta charset="utf-8">
@@ -91,6 +100,17 @@
   .tiempo { font-family: ui-monospace, monospace; font-size: 13px; color: #8FA5B5; }
   .centro { text-align: center; }
   .nota { color: #5A7183; font-size: 12px; margin: 12px 0 0; }
+  #mira { position:absolute; left:50%; top:50%; width:70px; height:70px; margin:-35px 0 0 -35px; pointer-events:none; }
+  #mira:before, #mira:after { content:""; position:absolute; background:rgba(90,255,220,.85); }
+  #mira:before { left:50%; top:0; width:2px; height:20px; margin-left:-1px; box-shadow:0 50px 0 rgba(90,255,220,.85); }
+  #mira:after { top:50%; left:0; height:2px; width:20px; margin-top:-1px; box-shadow:50px 0 0 rgba(90,255,220,.85); }
+  #mira .anillo { position:absolute; inset:14px; border:2px solid rgba(90,255,220,.5); border-radius:50%; }
+  #hudPiloto { position:absolute; right:18px; bottom:18px; background:rgba(11,16,22,.62); border:1px solid #33475A; border-radius:12px; padding:12px 14px; font-family:ui-monospace,monospace; font-size:13px; color:#CFE0EC; pointer-events:none; min-width:150px; }
+  #hudPiloto .fila { display:flex; justify-content:space-between; gap:14px; padding:2px 0; }
+  #hudPiloto .cl { color:#7C93A6; }
+  #objetivoNom { color:#5AFFDC; }
+  #capaImpacto { background:radial-gradient(60% 60% at 50% 50%, rgba(0,0,0,0) 30%, rgba(224,58,40,.55) 100%); transition:opacity .1s linear; }
+  .insignia { font-size:10px; letter-spacing:.12em; background:#D93B28; color:#0B1016; border-radius:4px; padding:2px 6px; margin-left:6px; font-weight:700; }
   #cargando { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #8FA5B5; font-size: 14px; }
 </style>
 </head>
@@ -101,14 +121,37 @@
     <div class="eyebrow">circuito compartido</div>
     <h1>Gran Premio<br><span class="acento">YASSIR</span></h1>
     <p class="intro">Dos vueltas con salida por semáforo, derrapes que dejan marca en el asfalto, zonas de turbo y un pórtico de meta con el nombre en grande. Crea la sala, reparte el código y corred a la vez.</p>
+    <p class="intro" style="color:#C98A3C">¿Te llamas Mario? En la parrilla te saldrá la opción de dejar el coche y pilotar el avión de MARIO AIRLINES para hostigar a los demás con misiles.</p>
+    <div id="config" class="oculto" style="background:#141C25;border:1px solid #33475A;border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="font-weight:700;margin-bottom:6px">Conecta la base de datos</div>
+      <p style="color:#8FA5B5;font-size:13px;line-height:1.55;margin:0 0 10px">
+        1. Entra en <b>console.firebase.google.com</b> y crea un proyecto.<br>
+        2. Compilación → Realtime Database → Crear base de datos → modo de prueba.<br>
+        3. Rueda dentada → Configuración del proyecto → Tus apps → icono <b>&lt;/&gt;</b>.<br>
+        4. Copia el bloque <b>firebaseConfig</b> que te enseña y pégalo aquí abajo.
+      </p>
+      <textarea id="cfgTexto" class="campo" rows="5" spellcheck="false" placeholder='apiKey: "AIza...",
+authDomain: "...",
+databaseURL: "https://....firebasedatabase.app",
+projectId: "...",
+appId: "..."' style="resize:vertical;font-size:12px;font-family:ui-monospace,monospace"></textarea>
+      <button id="btnCfg" class="primario" style="margin-top:10px">Conectar</button>
+      <p id="cfgAviso" style="font-size:13px;line-height:1.5;margin:10px 0 0;color:#8FA5B5"></p>
+      <button id="btnSolo" style="background:none;color:#7C93A6;font-size:12px;text-decoration:underline;padding:10px 0 0">o jugar yo solo, sin conexión</button>
+    </div>
+
+    <div id="zonaJuego">
     <input id="nombre" class="campo mb16" maxlength="14" placeholder="Tu nombre de piloto" autocomplete="off">
     <button id="btnCrear" class="primario mb20">Crear sala nueva</button>
     <div class="fila">
       <input id="entradaCodigo" class="campo codigo" maxlength="4" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false">
       <button id="btnEntrar" class="secundario">Entrar en sala</button>
     </div>
+    </div>
     <p id="avisoInicio" class="aviso"></p>
-    <p class="pie">Flechas o WASD para conducir · espacio derrapa · C cambia de cámara · R te devuelve al asfalto. Las salas viven en el almacenamiento de esta página: quien tenga el código entra.</p>
+    <p class="pie"><b>Al volante:</b> flechas o WASD · espacio derrapa · C cambia de cámara · R te devuelve al asfalto.<br>
+    <b>A los mandos del avión:</b> izquierda y derecha inclinan y viran · arriba y abajo mueven el morro · mayúsculas acelera · espacio dispara al coche que tengas en la mira.<br>
+    Las salas se sincronizan en tiempo real: quien tenga el código entra.</p>
   </div>
 </div>
 
@@ -121,6 +164,7 @@
     <div>
       <div class="etiqueta">sala</div>
       <div id="codigoSala">----</div>
+      <div id="estadoRed" style="font-size:11px;color:#7C93A6;margin-top:2px">conectando…</div>
       <div id="mejorVuelta" class="oculto">mejor <span id="txtMejor">--:--</span></div>
     </div>
     <div>
@@ -149,6 +193,29 @@
     </div>
   </div>
 
+  <div id="capaImpacto" class="capa"></div>
+  <div id="mira" class="oculto"><div class="anillo"></div></div>
+
+  <div id="hudPiloto" class="oculto">
+    <div class="fila"><span class="cl">altitud</span><span id="pilAlt">0 m</span></div>
+    <div class="fila"><span class="cl">velocidad</span><span id="pilVel">0</span></div>
+    <div class="fila"><span class="cl">objetivo</span><span id="objetivoNom">ninguno</span></div>
+    <div class="fila"><span class="cl">misiles</span><span id="pilCarga">listo</span></div>
+  </div>
+
+  <div id="mandosPiloto" class="oculto" style="position:absolute;left:0;right:0;bottom:0;padding:16px;display:flex;justify-content:space-between;pointer-events:none">
+    <div class="grupo" style="display:flex;gap:12px;margin-left:148px;pointer-events:auto">
+      <button class="pad" data-mando="izq">◀</button>
+      <button class="pad" data-mando="der">▶</button>
+    </div>
+    <div class="grupo" style="display:flex;gap:12px;margin-right:176px;pointer-events:auto">
+      <button class="pad chico" data-mando="bajar">morro ▼</button>
+      <button class="pad chico" data-mando="subir">morro ▲</button>
+      <button class="pad chico" data-mando="gas" style="background:#2B4A5C">turbo</button>
+      <button class="pad gas" data-mando="fuego">FUEGO</button>
+    </div>
+  </div>
+
   <div id="mandos" class="oculto">
     <div class="grupo izquierda">
       <button class="pad" data-mando="izq">◀</button>
@@ -168,7 +235,9 @@
         <span id="contadorPilotos" class="sutil">0 pilotos</span>
       </div>
       <div id="listaPilotos" class="listaPilotos"></div>
+      <div id="zonaRol" style="margin-top:10px"></div>
       <div id="zonaSalida" style="margin-top:16px"></div>
+      <button id="btnEnlace" class="secundario oculto" style="width:100%;margin-top:8px">Copiar enlace de invitación</button>
       <p id="notaLobby" class="nota centro">Pasa el código a quien quieras que corra contigo.</p>
     </div>
   </div>
@@ -186,6 +255,8 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-database-compat.js"></script>
 <script>
 (function () {
   "use strict";
@@ -203,7 +274,6 @@
   var NOMBRE_META = "YASSIR";
   var VUELTAS = 2, N = 720, ANCHO = 9, VEL_MAX = 52, SUELO = -9;
   var TURBOS = [0.12, 0.44, 0.76];
-  var PERFIL = "yassir:perfil";
   var claveSala = function (c) { return "yassir:sala:" + c; };
 
   var TRAZADO = [
@@ -227,25 +297,107 @@
     return m + ":" + r;
   };
 
-  /* ============================ almacenamiento ======================== */
-  var memoria = {};
-  var enLocal = !window.storage;
-  var almacen = window.storage || {
-    get: function (k) {
-      return new Promise(function (res, rej) {
-        if (!(k in memoria)) rej(new Error("no existe")); else res({ key: k, value: memoria[k] });
-      });
-    },
-    set: function (k, v) { memoria[k] = v; return Promise.resolve({ key: k, value: v }); }
+  /* ===================================================================
+     CONFIGURACION DE FIREBASE
+     Pega aqui el objeto firebaseConfig que te da la consola de Firebase
+     (Configuracion del proyecto -> Tus apps -> app web).
+     Mientras no lo pegues, el juego funciona en modo local (tu solo).
+     =================================================================== */
+  var yoColor = COLORES[Math.floor(Math.random() * COLORES.length)];
+  var CONFIG_FIREBASE = {
+    apiKey: "AIzaSyAS2sEiZ3vh3DpvG-Vx85w73zoAOdaFCNs",
+    authDomain: "marela-8d4e5.firebaseapp.com",
+    databaseURL: "https://marela-8d4e5-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "marela-8d4e5",
+    storageBucket: "marela-8d4e5.firebasestorage.app",
+    messagingSenderId: "107896274524",
+    appId: "1:107896274524:web:3015709404862e0c58b099"
   };
 
-  function leerSala(codigo) {
-    return almacen.get(claveSala(codigo), true).then(function (r) {
-      return r && r.value ? JSON.parse(r.value) : null;
-    }).catch(function () { return null; });
+  var db = null, enLocal = true, conectado = false, cfgActual = null, salaInvitada = null;
+
+  function cfgValida(c) {
+    return !!(c && typeof c === "object" && c.apiKey && c.databaseURL);
   }
-  function guardarSala(sala) {
-    return almacen.set(claveSala(sala.code), JSON.stringify(sala), true);
+
+  function cfgDesdeTexto(txt) {
+    var c = {}, m, re = /([A-Za-z]+)\s*:\s*["']([^"']+)["']/g;
+    while ((m = re.exec(txt)) !== null) c[m[1]] = m[2];
+    if (!c.databaseURL) {
+      var u = txt.match(/https:\/\/[A-Za-z0-9._-]*(firebasedatabase\.app|firebaseio\.com)[^"'\s,]*/);
+      if (u) c.databaseURL = u[0];
+    }
+    return c;
+  }
+
+  function iniciarFirebase(cfg) {
+    if (typeof firebase === "undefined") return "No se han cargado los scripts de Firebase. Comprueba tu conexión y recarga.";
+    try {
+      if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(cfg);
+      db = firebase.database();
+      cfgActual = cfg;
+      enLocal = false;
+      db.ref(".info/connected").on("value", function (s2) { conectado = !!s2.val(); pintarRed(); });
+      return null;
+    } catch (e) {
+      return "No se pudo conectar: " + (e && e.message ? e.message : e);
+    }
+  }
+
+  function probarReglas(alTerminar) {
+    if (!db) return;
+    var ref = db.ref("salas/PRUEBA/meta");
+    ref.set({ ping: Date.now() }).then(function () {
+      return ref.remove();
+    }).then(function () {
+      alTerminar(null);
+    }).catch(function (err) {
+      alTerminar("La base de datos rechaza la escritura (" + (err.code || err.message) +
+        "). Ve a Realtime Database → Reglas y pega: { \"rules\": { \"salas\": { \"$sala\": { \".read\": true, \".write\": true } } } }");
+    });
+  }
+
+  function recordarCfg(cfg) {
+    try { window.localStorage.setItem("yassir:cfg", JSON.stringify(cfg)); } catch (e) {}
+  }
+
+  function enlaceInvitacion(codigoSala) {
+    if (!cfgActual) return location.href;
+    var base = location.origin + location.pathname;
+    var paquete = btoa(encodeURIComponent(JSON.stringify(cfgActual)));
+    return base + "#cfg=" + paquete + (codigoSala ? "&sala=" + codigoSala : "");
+  }
+
+  (function arranqueConfig() {
+    var cfg = null, m;
+    if (CONFIG_FIREBASE.databaseURL.indexOf("TU-PROYECTO") < 0) cfg = CONFIG_FIREBASE;
+    if (!cfg && location.hash) {
+      m = location.hash.match(/cfg=([^&]+)/);
+      if (m) { try { cfg = JSON.parse(decodeURIComponent(atob(m[1]))); } catch (e) { cfg = null; } }
+    }
+    if (!cfg) {
+      try { cfg = JSON.parse(window.localStorage.getItem("yassir:cfg") || "null"); } catch (e) { cfg = null; }
+    }
+    if (location.hash) {
+      m = location.hash.match(/sala=([A-Z0-9]{4})/i);
+      if (m) salaInvitada = m[1].toUpperCase();
+    }
+    if (cfgValida(cfg)) { recordarCfg(cfg); iniciarFirebase(cfg); }
+  })();
+
+  function pintarRed() {
+    var el = document.getElementById("estadoRed");
+    if (!el) return;
+    if (enLocal) { el.textContent = "modo local"; el.style.color = "#C98A3C"; }
+    else if (conectado) { el.textContent = "en línea"; el.style.color = "#7BE04F"; }
+    else { el.textContent = "reconectando…"; el.style.color = "#C98A3C"; }
+  }
+
+  function guardarPerfil(n) {
+    try { window.localStorage.setItem("yassir:perfil", JSON.stringify({ nombre: n, color: yo.color })); } catch (e) {}
+  }
+  function cargarPerfil() {
+    try { return JSON.parse(window.localStorage.getItem("yassir:perfil") || "null"); } catch (e) { return null; }
   }
 
   /* ================================ sonido ============================ */
@@ -380,6 +532,42 @@
     }
     return new THREE.CanvasTexture(c);
   }
+  function texturaAsfalto() {
+    var c = document.createElement("canvas"); c.width = 256; c.height = 256;
+    var g = c.getContext("2d");
+    g.fillStyle = "#31373E"; g.fillRect(0, 0, 256, 256);
+    var i, x, y;
+    for (i = 0; i < 5200; i++) {
+      x = Math.random() * 256; y = Math.random() * 256;
+      var t = Math.random();
+      g.fillStyle = t < 0.5 ? "rgba(255,255,255,0.05)" : (t < 0.85 ? "rgba(0,0,0,0.16)" : "rgba(150,160,170,0.09)");
+      g.fillRect(x, y, 1 + Math.random() * 2.2, 1 + Math.random() * 2.2);
+    }
+    for (i = 0; i < 7; i++) {
+      g.strokeStyle = "rgba(0,0,0,0.10)"; g.lineWidth = 1 + Math.random() * 2;
+      g.beginPath(); g.moveTo(Math.random() * 256, 0);
+      g.bezierCurveTo(Math.random() * 256, 85, Math.random() * 256, 170, Math.random() * 256, 256);
+      g.stroke();
+    }
+    var t2 = new THREE.CanvasTexture(c);
+    t2.wrapS = t2.wrapT = THREE.RepeatWrapping;
+    t2.repeat.set(2, 1);
+    t2.anisotropy = 4;
+    return t2;
+  }
+
+  function texturaSol() {
+    var c = document.createElement("canvas"); c.width = 128; c.height = 128;
+    var g = c.getContext("2d");
+    var gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, "rgba(255,244,214,1)");
+    gr.addColorStop(0.18, "rgba(255,214,150,0.85)");
+    gr.addColorStop(0.5, "rgba(255,170,110,0.22)");
+    gr.addColorStop(1, "rgba(255,150,90,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+
   function texturaMota(suave) {
     var c = document.createElement("canvas"); c.width = 64; c.height = 64;
     var g = c.getContext("2d");
@@ -394,25 +582,34 @@
   }
 
   function texturaMario(espejo) {
-    var c = document.createElement("canvas"); c.width = 512; c.height = 128;
+    var c = document.createElement("canvas"); c.width = 1024; c.height = 256;
     var g = c.getContext("2d");
-    g.fillStyle = "#F2EFE6"; g.fillRect(0, 0, 512, 128);
-    g.fillStyle = "#E03B28"; g.fillRect(0, 104, 512, 24);
-    if (espejo) { g.translate(512, 0); g.scale(-1, 1); }
-    g.font = '900 72px ui-sans-serif, system-ui, Helvetica, Arial, sans-serif';
+    g.fillStyle = "#F6F3EA"; g.fillRect(0, 0, 1024, 256);
+    g.fillStyle = "#D93B28"; g.fillRect(0, 196, 1024, 34);
+    g.fillStyle = "#2B3A47"; g.fillRect(0, 230, 1024, 10);
+    if (espejo) { g.translate(1024, 0); g.scale(-1, 1); }
     g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillStyle = "#E03B28";
-    escribirEspaciado(g, "MARIO", 246, 52, 9, false);
+    g.font = '900 104px ui-sans-serif, system-ui, Helvetica, Arial, sans-serif';
+    g.fillStyle = "#D93B28";
+    escribirEspaciado(g, "MARIO", 470, 88, 12, false);
+    g.font = '700 44px ui-sans-serif, system-ui, Helvetica, Arial, sans-serif';
     g.fillStyle = "#2B3A47";
-    g.font = '600 20px ui-sans-serif, system-ui, Helvetica, Arial, sans-serif';
-    g.fillText("aerolíneas", 246, 92);
-    return new THREE.CanvasTexture(c);
+    escribirEspaciado(g, "AIRLINES", 470, 152, 16, false);
+    g.beginPath();
+    g.moveTo(760, 60); g.lineTo(900, 108); g.lineTo(760, 156); g.lineTo(800, 108);
+    g.closePath();
+    g.fillStyle = "#D93B28"; g.fill();
+    g.fillStyle = "#1B242C";
+    for (var w = 0; w < 26; w++) g.fillRect(24 + w * 38, 18, 20, 20);
+    var t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    return t;
   }
 
   /* ============================== geometrias ========================== */
-  function cinta(muestras, lados, dentro, fuera, dy, material, filtro, yFuera) {
+  function cintaTrozo(muestras, lados, dentro, fuera, dy, material, filtro, yFuera, desde, hasta) {
     var pos = [], idx = [], uv = [], n = muestras.length, v = 0;
-    for (var i = 0; i < n; i++) {
+    for (var i = desde; i < hasta; i++) {
       if (filtro && !filtro(i)) continue;
       var j = (i + 1) % n;
       var pares = [[muestras[i], lados[i], i], [muestras[j], lados[j], i + 1]];
@@ -425,6 +622,7 @@
       idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
       v += 4;
     }
+    if (!idx.length) return null;
     var geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
@@ -433,27 +631,47 @@
     return new THREE.Mesh(geo, material);
   }
 
+  /* Divide la banda en trozos: cada uno se descarta solo cuando queda fuera de
+     la vista, que es de donde sale casi toda la ganancia de rendimiento. */
+  function cinta(muestras, lados, dentro, fuera, dy, material, filtro, yFuera, trozos, recibeSombra) {
+    var n = muestras.length;
+    trozos = trozos || 1;
+    if (trozos < 2) {
+      var uno = cintaTrozo(muestras, lados, dentro, fuera, dy, material, filtro, yFuera, 0, n);
+      if (uno && recibeSombra) uno.receiveShadow = true;
+      return uno || new THREE.Group();
+    }
+    var g = new THREE.Group(), paso = Math.ceil(n / trozos);
+    for (var a = 0; a < n; a += paso) {
+      var m = cintaTrozo(muestras, lados, dentro, fuera, dy, material, filtro, yFuera, a, Math.min(a + paso, n));
+      if (m) { if (recibeSombra) m.receiveShadow = true; g.add(m); }
+    }
+    return g;
+  }
+
   function crearCoche(color) {
     var g = new THREE.Group();
-    var pintura = new THREE.MeshLambertMaterial({ color: new THREE.Color(color) });
-    var oscuro = new THREE.MeshLambertMaterial({ color: 0x141a20 });
-    var cristal = new THREE.MeshLambertMaterial({ color: 0x2b3a47 });
+    var cuerpo = new THREE.Group();
+    g.add(cuerpo);
+    var pintura = new THREE.MeshPhongMaterial({ color: new THREE.Color(color), shininess: 62, specular: 0x9aa4ad });
+    var oscuro = new THREE.MeshPhongMaterial({ color: 0x141a20, shininess: 22, specular: 0x333b44 });
+    var cristal = new THREE.MeshPhongMaterial({ color: 0x22303c, shininess: 96, specular: 0xbcd0e0 });
     var luzFreno = new THREE.MeshBasicMaterial({ color: 0x5a1410 });
 
-    var chasis = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.42, 4.4), pintura); chasis.position.y = 0.52; g.add(chasis);
-    var pontones = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.34, 2.1), pintura); pontones.position.set(0, 0.44, 0.4); g.add(pontones);
-    var morro = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.28, 1.6), pintura); morro.position.set(0, 0.44, -2.7); g.add(morro);
-    var alaD = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.12, 0.62), oscuro); alaD.position.set(0, 0.28, -3.3); g.add(alaD);
-    var cabina = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.48, 1.5), cristal); cabina.position.set(0, 0.9, -0.1); g.add(cabina);
+    var chasis = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.42, 4.4), pintura); chasis.position.y = 0.52; cuerpo.add(chasis);
+    var pontones = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.34, 2.1), pintura); pontones.position.set(0, 0.44, 0.4); cuerpo.add(pontones);
+    var morro = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.28, 1.6), pintura); morro.position.set(0, 0.44, -2.7); cuerpo.add(morro);
+    var alaD = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.12, 0.62), oscuro); alaD.position.set(0, 0.28, -3.3); cuerpo.add(alaD);
+    var cabina = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.48, 1.5), cristal); cabina.position.set(0, 0.9, -0.1); cuerpo.add(cabina);
     var casco = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), new THREE.MeshLambertMaterial({ color: 0xf2efe6 }));
-    casco.position.set(0, 1.12, -0.15); g.add(casco);
-    var airbox = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.52, 0.85), pintura); airbox.position.set(0, 0.98, 0.95); g.add(airbox);
-    var ala = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.14, 0.62), oscuro); ala.position.set(0, 1.06, 2.3); g.add(ala);
+    casco.position.set(0, 1.12, -0.15); cuerpo.add(casco);
+    var airbox = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.52, 0.85), pintura); airbox.position.set(0, 0.98, 0.95); cuerpo.add(airbox);
+    var ala = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.14, 0.62), oscuro); ala.position.set(0, 1.06, 2.3); cuerpo.add(ala);
     [-0.62, 0.62].forEach(function (x) {
       var sop = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.14), oscuro);
-      sop.position.set(x, 0.8, 2.3); g.add(sop);
+      sop.position.set(x, 0.8, 2.3); cuerpo.add(sop);
     });
-    var freno = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.1), luzFreno); freno.position.set(0, 0.72, 2.42); g.add(freno);
+    var freno = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.1), luzFreno); freno.position.set(0, 0.72, 2.42); cuerpo.add(freno);
 
     var ruedaGeo = new THREE.CylinderGeometry(0.48, 0.48, 0.44, 14);
     ruedaGeo.rotateZ(Math.PI / 2);
@@ -468,37 +686,78 @@
     var sombra = new THREE.Mesh(new THREE.CircleGeometry(2.5, 18),
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }));
     sombra.rotation.x = -Math.PI / 2; sombra.position.y = 0.04; g.add(sombra);
-    g.userData = { pivotes: pivotes, ruedas: ruedas, luzFreno: luzFreno, traseras: traseras };
+    cuerpo.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+    g.userData = { pivotes: pivotes, ruedas: ruedas, luzFreno: luzFreno, traseras: traseras, cuerpo: cuerpo };
     return g;
   }
 
+  var texMarioA = null, texMarioB = null;
   function crearAvion() {
+    if (!texMarioA) { texMarioA = texturaMario(false); texMarioB = texturaMario(true); }
     var g = new THREE.Group();
-    var blanco = new THREE.MeshLambertMaterial({ color: 0xf4f1e8 });
-    var rojo = new THREE.MeshLambertMaterial({ color: 0xe03b28 });
-    var gris = new THREE.MeshLambertMaterial({ color: 0x39434e });
-    var fus = new THREE.CylinderGeometry(2.5, 2.2, 40, 14); fus.rotateX(Math.PI / 2);
+    var blanco = new THREE.MeshPhongMaterial({ color: 0xf6f3ea, shininess: 48, specular: 0x8f98a2 });
+    var rojo = new THREE.MeshPhongMaterial({ color: 0xd93b28, shininess: 40, specular: 0x555555 });
+    var gris = new THREE.MeshPhongMaterial({ color: 0x39434e, shininess: 30 });
+    var negro = new THREE.MeshBasicMaterial({ color: 0x141a20 });
+
+    var fus = new THREE.CylinderGeometry(2.5, 2.3, 42, 18); fus.rotateX(Math.PI / 2);
     g.add(new THREE.Mesh(fus, blanco));
-    var nar = new THREE.ConeGeometry(2.5, 7, 14); nar.rotateX(Math.PI / 2);
-    var nariz = new THREE.Mesh(nar, blanco); nariz.position.z = 23; g.add(nariz);
-    var deriva = new THREE.Mesh(new THREE.BoxGeometry(0.8, 10, 8), rojo);
-    deriva.position.set(0, 5.6, -17.5); g.add(deriva);
-    var estab = new THREE.Mesh(new THREE.BoxGeometry(18, 0.7, 4.5), blanco);
-    estab.position.set(0, 0.4, -16.5); g.add(estab);
-    var alas = new THREE.Mesh(new THREE.BoxGeometry(56, 1, 10), blanco);
-    alas.position.set(0, -0.8, -1); g.add(alas);
-    [-14, 14].forEach(function (x) {
-      var mo = new THREE.CylinderGeometry(2, 2, 7, 10); mo.rotateX(Math.PI / 2);
-      var motor = new THREE.Mesh(mo, gris);
-      motor.position.set(x, -3, 1.5); g.add(motor);
+    var nar = new THREE.SphereGeometry(2.5, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+    nar.rotateX(Math.PI / 2); nar.scale(1, 1, 1.9);
+    var nariz = new THREE.Mesh(nar, blanco); nariz.position.z = 21; g.add(nariz);
+    var morro = new THREE.Mesh(new THREE.BoxGeometry(2, 1.2, 2.6), negro);
+    morro.position.set(0, 0.6, 23.4); g.add(morro);
+    var colaGeo = new THREE.CylinderGeometry(2.3, 0.6, 9, 14); colaGeo.rotateX(Math.PI / 2);
+    var cono = new THREE.Mesh(colaGeo, blanco); cono.position.set(0, 1.1, -24); g.add(cono);
+
+    var deriva = new THREE.Mesh(new THREE.BoxGeometry(0.9, 11, 9), rojo);
+    deriva.position.set(0, 7, -19.5); deriva.rotation.x = -0.24; g.add(deriva);
+    var logoCola = new THREE.Mesh(new THREE.PlaneGeometry(7, 3.4),
+      new THREE.MeshBasicMaterial({ map: texMarioA, transparent: false }));
+    logoCola.position.set(0.55, 8.4, -19); logoCola.rotation.y = Math.PI / 2; g.add(logoCola);
+    var logoCola2 = new THREE.Mesh(new THREE.PlaneGeometry(7, 3.4),
+      new THREE.MeshBasicMaterial({ map: texMarioB, transparent: false }));
+    logoCola2.position.set(-0.55, 8.4, -19); logoCola2.rotation.y = -Math.PI / 2; g.add(logoCola2);
+
+    var estab = new THREE.Mesh(new THREE.BoxGeometry(19, 0.7, 5), blanco);
+    estab.position.set(0, 1.6, -22); g.add(estab);
+
+    var alaGeo = new THREE.BoxGeometry(30, 1, 11);
+    [-1, 1].forEach(function (lado) {
+      var ala = new THREE.Mesh(alaGeo, blanco);
+      ala.position.set(lado * 16, -0.6, -1);
+      ala.rotation.z = -lado * 0.07;
+      ala.rotation.y = lado * 0.16;
+      g.add(ala);
+      var punta = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.4, 4), rojo);
+      punta.position.set(lado * 30.5, 0.9, -2.6); g.add(punta);
+      var motor = new THREE.CylinderGeometry(2.3, 2.1, 8.5, 14); motor.rotateX(Math.PI / 2);
+      var mo = new THREE.Mesh(motor, gris);
+      mo.position.set(lado * 12, -3.4, 2); g.add(mo);
+      var turbina = new THREE.Mesh(new THREE.CircleGeometry(2, 14), negro);
+      turbina.position.set(lado * 12, -3.4, 6.3); g.add(turbina);
+      var luz = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6),
+        new THREE.MeshBasicMaterial({ color: lado < 0 ? 0xff3322 : 0x33ff66 }));
+      luz.position.set(lado * 31, 1.4, -2.6); g.add(luz);
     });
-    [1, -1].forEach(function (lado) {
-      var panel = new THREE.Mesh(new THREE.PlaneGeometry(24, 6),
-        new THREE.MeshBasicMaterial({ map: texturaMario(lado < 0) }));
-      panel.position.set(lado * 2.62, 0.6, 2);
-      panel.rotation.y = lado * Math.PI / 2;
+
+    var franja = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.1, 40), rojo);
+    [-2.45, 2.45].forEach(function (x) {
+      var f = franja.clone(); f.position.set(x, -1.2, -2); g.add(f);
+    });
+    [[2.62, texMarioA, Math.PI / 2], [-2.62, texMarioB, -Math.PI / 2]].forEach(function (c) {
+      var panel = new THREE.Mesh(new THREE.PlaneGeometry(26, 6.5),
+        new THREE.MeshBasicMaterial({ map: c[1] }));
+      panel.position.set(c[0], -0.4, 1);
+      panel.rotation.y = c[2];
       g.add(panel);
     });
+
+    var baliza = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff4433 }));
+    baliza.position.set(0, -3, -6); g.add(baliza);
+    g.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
+    g.userData = { baliza: baliza };
     return g;
   }
 
@@ -579,8 +838,14 @@
 
   /* ================================ escena ============================ */
   function montarEscena(canvas) {
-    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    var esMovil = Math.min(window.innerWidth, window.innerHeight) < 700 ||
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !esMovil, powerPreference: "high-performance" });
+    var calidad = esMovil ? 1.2 : Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(calidad);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.shadowMap.enabled = !esMovil;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     var scene = new THREE.Scene();
     var niebla = 0xb0a89c;
@@ -588,9 +853,28 @@
     scene.fog = new THREE.Fog(niebla, 320, 1700);
     scene.add(new THREE.Mesh(new THREE.SphereGeometry(2600, 24, 16),
       new THREE.MeshBasicMaterial({ map: texturaCielo(), side: THREE.BackSide, fog: false })));
-    scene.add(new THREE.HemisphereLight(0xc9dcf2, 0x39432f, 0.9));
-    var sol = new THREE.DirectionalLight(0xffdcb0, 0.95);
-    sol.position.set(-420, 300, 220); scene.add(sol);
+    scene.add(new THREE.HemisphereLight(0xbed4ee, 0x3d4636, 0.72));
+    var sol = new THREE.DirectionalLight(0xffe0b8, 1.15);
+    sol.position.set(-420, 300, 220);
+    if (!esMovil) {
+      sol.castShadow = true;
+      sol.shadow.mapSize.width = 1024;
+      sol.shadow.mapSize.height = 1024;
+      sol.shadow.camera.near = 1;
+      sol.shadow.camera.far = 260;
+      sol.shadow.camera.left = -46; sol.shadow.camera.right = 46;
+      sol.shadow.camera.top = 46; sol.shadow.camera.bottom = -46;
+      sol.shadow.bias = -0.0009;
+    }
+    scene.add(sol);
+    scene.add(sol.target);
+
+    var discoSol = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: texturaSol(), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending
+    }));
+    discoSol.scale.set(620, 620, 1);
+    discoSol.position.set(-1700, 900, 900);
+    scene.add(discoSol);
 
     var camera = new THREE.PerspectiveCamera(62, 1, 0.5, 5000);
 
@@ -609,7 +893,9 @@
       return Math.atan2(b.x - p.x, b.z - p.z);
     };
 
-    var asfalto = new THREE.MeshLambertMaterial({ color: 0x2e343b, side: THREE.DoubleSide });
+    var m4 = new THREE.Matrix4(), q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion(), uno = new THREE.Vector3(1, 1, 1);
+    var texAsf = texturaAsfalto();
+    var asfalto = new THREE.MeshLambertMaterial({ map: texAsf, color: 0xffffff, side: THREE.DoubleSide });
     var hierba = new THREE.MeshLambertMaterial({ color: 0x445c3a, side: THREE.DoubleSide });
     var arena = new THREE.MeshLambertMaterial({ color: 0x93805c, side: THREE.DoubleSide });
     var blanco = new THREE.MeshLambertMaterial({ color: 0xf0ede4, side: THREE.DoubleSide });
@@ -618,17 +904,18 @@
     var llano = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ color: 0x3d5236 }));
     llano.rotation.x = -Math.PI / 2; llano.position.y = SUELO; scene.add(llano);
 
+    var TROZOS = 16;
     [1, -1].forEach(function (lado) {
-      scene.add(cinta(muestras, lados, lado * (ANCHO + 8), lado * (ANCHO + 30), -0.3, hierba, null, SUELO));
+      scene.add(cinta(muestras, lados, lado * (ANCHO + 8), lado * (ANCHO + 30), -0.3, hierba, null, SUELO, TROZOS));
     });
-    scene.add(cinta(muestras, lados, -ANCHO - 8.2, ANCHO + 8.2, -0.28, arena));
-    scene.add(cinta(muestras, lados, -ANCHO, ANCHO, 0, asfalto));
+    scene.add(cinta(muestras, lados, -ANCHO - 8.2, ANCHO + 8.2, -0.28, arena, null, null, TROZOS, true));
+    scene.add(cinta(muestras, lados, -ANCHO, ANCHO, 0, asfalto, null, null, TROZOS, true));
     [1, -1].forEach(function (lado) {
       var a = lado * ANCHO, b = lado * (ANCHO + 1.4);
-      scene.add(cinta(muestras, lados, a, b, 0.05, rojo, function (i) { return Math.floor(i / 5) % 2 === 0; }));
-      scene.add(cinta(muestras, lados, a, b, 0.05, blanco, function (i) { return Math.floor(i / 5) % 2 === 1; }));
+      scene.add(cinta(muestras, lados, a, b, 0.05, rojo, function (i) { return Math.floor(i / 5) % 2 === 0; }, null, TROZOS));
+      scene.add(cinta(muestras, lados, a, b, 0.05, blanco, function (i) { return Math.floor(i / 5) % 2 === 1; }, null, TROZOS));
     });
-    scene.add(cinta(muestras, lados, -0.25, 0.25, 0.06, blanco, function (i) { return i % 16 < 8; }));
+    scene.add(cinta(muestras, lados, -0.25, 0.25, 0.06, blanco, function (i) { return i % 16 < 8; }, null, TROZOS));
     scene.add(cinta(muestras, lados, -ANCHO, ANCHO, 0.07,
       new THREE.MeshBasicMaterial({ map: texturaCuadros() }), function (i) { return i < 2; }));
 
@@ -715,7 +1002,6 @@
     var troncos = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.5, 0.75, 4.5, 6), new THREE.MeshLambertMaterial({ color: 0x4a3a2b }), 300);
     var copas = new THREE.InstancedMesh(new THREE.ConeGeometry(3.6, 10, 7), new THREE.MeshLambertMaterial({ color: 0x33502e }), 300);
     var postes = new THREE.InstancedMesh(new THREE.BoxGeometry(0.45, 1.6, 0.45), new THREE.MeshLambertMaterial({ color: 0xe8e4d8 }), 300);
-    var m4 = new THREE.Matrix4(), q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion(), uno = new THREE.Vector3(1, 1, 1);
     var na = 0;
     for (i = 60; i < N && na < 300; i += 4) {
       var ladoA = Math.random() < 0.5 ? 1 : -1;
@@ -747,6 +1033,21 @@
     postes.count = np; postes.instanceMatrix.needsUpdate = true;
     scene.add(postes);
 
+    var montes = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(1, 1, 5),
+      new THREE.MeshPhongMaterial({ color: 0x6b7a86, shininess: 3, flatShading: true }), 46);
+    for (i = 0; i < 46; i++) {
+      var ang = (i / 46) * Math.PI * 2 + Math.random() * 0.08;
+      var rad = 1500 + Math.random() * 700;
+      var alt = 150 + Math.random() * 320;
+      var anch = 260 + Math.random() * 300;
+      m4.compose(new THREE.Vector3(Math.cos(ang) * rad, SUELO + alt * 0.42, Math.sin(ang) * rad),
+        q0, new THREE.Vector3(anch, alt, anch));
+      montes.setMatrixAt(i, m4);
+    }
+    montes.instanceMatrix.needsUpdate = true;
+    scene.add(montes);
+
     var humo = crearParticulas(scene, 320, new THREE.PointsMaterial({
       size: 2.4, map: texturaMota(true), transparent: true, opacity: 0.55,
       depthWrite: false, sizeAttenuation: true, color: 0xdad4c8
@@ -771,69 +1072,130 @@
     }
 
     return {
-      renderer: renderer, scene: scene, camera: camera, largo: largo, muestras: muestras,
+      renderer: renderer, scene: scene, camera: camera, sol: sol, esMovil: esMovil,
+      largo: largo, muestras: muestras,
       lados: lados, luces: luces, pads: pads, humo: humo, confeti: confeti,
       huellas: huellas, rumboEn: rumboEn, avion: avion, misiles: misiles, explosiones: explosiones
     };
   }
 
   /* ============================ estado del juego ====================== */
-  var yo = { id: idAleatorio(), color: COLORES[Math.floor(Math.random() * COLORES.length)], nombre: "" };
+  var yo = { id: idAleatorio(), color: yoColor, nombre: "", entro: 0 };
   var vista = "inicio", fase = "lobby", camara = "persecución";
-  var codigo = null, sala = null, rondaLocal = -1, pendiente = null, sincronizando = false;
-  var reinicio = 0, timerSync = null;
-  var mando = { gas: 0, freno: 0, izq: 0, der: 0, mano: 0 };
+  var codigo = null, sala = null, rondaLocal = -1;
+  var reinicio = 0;
+  var mando = { gas: 0, freno: 0, izq: 0, der: 0, mano: 0, subir: 0, bajar: 0, fuego: 0 };
+  var miRol = "corredor";
+  var pil = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, vel: 78, tiroN: 0, espera: 0, objetivo: null };
   var mis = { u: 0, vuelta: 0, total: 0, vel: 0, off: 0, terminado: false, tiempo: 0, mejor: 0, ronda: 0 };
   var mundo = null;
 
-  /* --------------------------- sincronizacion ------------------------- */
-  function sincronizar() {
-    if (!codigo || sincronizando) return Promise.resolve();
-    sincronizando = true;
-    var c = codigo;
-    return leerSala(c).then(function (base) {
-      if (!base) base = { code: c, anfitrion: yo.id, estado: "sala", ronda: 0, jugadores: {} };
-      if (pendiente) { for (var kk in pendiente) base[kk] = pendiente[kk]; pendiente = null; }
-      var ahora = Date.now();
-      var jugadores = {};
-      for (var id in base.jugadores) {
-        var j = base.jugadores[id];
-        if (id === yo.id || ahora - (j.visto || 0) <= 25000) jugadores[id] = j;
-      }
-      var previo = jugadores[yo.id];
-      var mio = {
-        id: yo.id, nombre: yo.nombre || "Piloto", color: yo.color,
-        entro: previo ? previo.entro : ahora, visto: ahora,
-        sello: (previo ? previo.sello || 0 : 0) + 1
-      };
-      for (var m in mis) mio[m] = mis[m];
-      jugadores[yo.id] = mio;
-      var anfitrion = base.anfitrion;
-      if (!jugadores[anfitrion]) {
-        var orden = Object.keys(jugadores).map(function (k) { return jugadores[k]; })
-          .sort(function (a, b) { return a.entro - b.entro; });
-        anfitrion = orden.length ? orden[0].id : yo.id;
-      }
-      base.jugadores = jugadores; base.anfitrion = anfitrion; base.code = c;
-      return guardarSala(base).then(function () { return base; });
-    }).then(function (base) {
-      sala = base;
+  /* --------------------------- red en tiempo real --------------------- */
+  var refSala = null, refMeta = null, refJug = null, refYo = null;
+  var timerPub = null, repintarPendiente = false, sello = 0;
+
+  function datosMios() {
+    var d = { id: yo.id, nombre: yo.nombre || "Piloto", color: yo.color, entro: yo.entro, sello: sello, rol: miRol };
+    for (var m in mis) d[m] = mis[m];
+    if (miRol === "piloto") {
+      d.px = pil.x; d.py = pil.y; d.pz = pil.z;
+      d.ryaw = pil.yaw; d.rpit = pil.pitch; d.rrol = pil.roll; d.tiroN = pil.tiroN;
+    }
+    return d;
+  }
+
+  function hayPiloto() {
+    if (!sala || !sala.jugadores) return false;
+    for (var k in sala.jugadores) if (sala.jugadores[k].rol === "piloto") return true;
+    return false;
+  }
+
+  function esMario() {
+    return (yo.nombre || "").trim().toLowerCase() === "mario";
+  }
+
+  function conectarSala(c) {
+    yo.entro = Date.now();
+    sala = { code: c, estado: "sala", ronda: 0, anfitrion: enLocal ? yo.id : null, jugadores: {} };
+    if (enLocal) {
+      sala.jugadores[yo.id] = datosMios();
       alCambiarSala();
       pintarPaneles();
-      sincronizando = false;
-    }).catch(function () {
-      sincronizando = false;
+      return;
+    }
+    refSala = db.ref("salas/" + c);
+    refMeta = refSala.child("meta");
+    refJug = refSala.child("jugadores");
+    refYo = refJug.child(yo.id);
+    refYo.set(datosMios());
+    refYo.onDisconnect().remove();
+
+    refMeta.on("value", function (snap) {
+      var m = snap.val() || {};
+      sala.estado = m.estado || "sala";
+      sala.ronda = m.ronda || 0;
+      sala.anfitrion = m.anfitrion || null;
+      alCambiarSala();
+      pintarPaneles();
+      revisarAnfitrion();
+    });
+    refJug.on("child_added", function (s2) {
+      sala.jugadores[s2.key] = s2.val();
+      pintarPaneles();
+      revisarAnfitrion();
+    });
+    refJug.on("child_changed", function (s2) {
+      sala.jugadores[s2.key] = s2.val();
+      repintarPendiente = true;
+    });
+    refJug.on("child_removed", function (s2) {
+      delete sala.jugadores[s2.key];
+      pintarPaneles();
+      revisarAnfitrion();
     });
   }
 
-  function bucleSync() {
-    clearTimeout(timerSync);
-    if (!codigo) return;
-    sincronizar().then(function () {
-      if (!codigo) return;
-      timerSync = setTimeout(bucleSync, fase === "corriendo" ? 900 : 2000);
-    });
+  function revisarAnfitrion() {
+    if (enLocal || !sala || !refMeta) return;
+    if (sala.anfitrion && sala.jugadores[sala.anfitrion]) return;
+    var orden = listaOrdenada();
+    if (orden.length && orden[0].id === yo.id) refMeta.update({ anfitrion: yo.id });
   }
+
+  function publicarTiro(x, y, z, obj) {
+    if (enLocal || !refYo) return;
+    refYo.update({ tiroN: pil.tiroN, tiroX: x, tiroY: y, tiroZ: z, tiroObj: obj || "" });
+  }
+
+  function publicar() {
+    sello++;
+    if (enLocal) { sala.jugadores[yo.id] = datosMios(); return; }
+    if (!refYo) return;
+    var d = {
+      u: mis.u, vuelta: mis.vuelta, total: mis.total, vel: mis.vel, off: mis.off,
+      terminado: mis.terminado, tiempo: mis.tiempo, mejor: mis.mejor, ronda: mis.ronda,
+      sello: sello, rol: miRol
+    };
+    if (miRol === "piloto") {
+      d.px = pil.x; d.py = pil.y; d.pz = pil.z;
+      d.ryaw = pil.yaw; d.rpit = pil.pitch; d.rrol = pil.roll; d.tiroN = pil.tiroN;
+    }
+    refYo.update(d);
+  }
+
+  function buclePublicar() {
+    clearTimeout(timerPub);
+    if (!codigo) return;
+    publicar();
+    timerPub = setTimeout(buclePublicar, fase === "corriendo" ? 110 : 900);
+  }
+
+  setInterval(function () {
+    if (repintarPendiente && (fase === "lobby" || fase === "meta")) {
+      repintarPendiente = false;
+      pintarPaneles();
+    }
+  }, 500);
 
   function alCambiarSala() {
     if (!sala || sala.ronda === rondaLocal) return;
@@ -841,6 +1203,7 @@
     mis = { u: 0, vuelta: 0, total: 0, vel: 0, off: 0, terminado: false, tiempo: 0, mejor: 0, ronda: sala.ronda };
     reinicio++;
     ponerFase(sala.estado === "carrera" ? "intro" : "lobby");
+    publicar();
   }
 
   /* ------------------------------ interfaz ---------------------------- */
@@ -849,6 +1212,15 @@
     fase = f;
     aplicarFase();
   }
+  function aplicarRol() {
+    var vuela = miRol === "piloto" && fase !== "lobby";
+    $("mira").classList.toggle("oculto", !vuela);
+    $("hudPiloto").classList.toggle("oculto", !vuela);
+    $("mandosPiloto").classList.toggle("oculto", !(vuela && (fase === "corriendo" || fase === "intro")));
+    $("tacometro").classList.toggle("oculto", fase === "lobby" || miRol === "piloto");
+    $("mandos").classList.toggle("oculto", !((fase === "corriendo" || fase === "intro") && miRol !== "piloto"));
+  }
+
   function aplicarFase() {
     $("panelLobby").classList.toggle("oculto", fase !== "lobby");
     $("panelMeta").classList.toggle("oculto", fase !== "meta");
@@ -857,6 +1229,7 @@
     $("datos").classList.toggle("oculto", fase === "lobby");
     $("mejorVuelta").classList.toggle("oculto", fase === "lobby");
     if (fase === "meta") $("metaMejor").textContent = reloj(mis.mejor);
+    aplicarRol();
   }
 
   function listaOrdenada() {
@@ -880,10 +1253,32 @@
       txt.textContent = j.nombre + (j.id === sala.anfitrion ? " · anfitrión" : "");
       txt.style.color = j.id === yo.id ? "#F2EFE6" : "#CFE0EC";
       fila.appendChild(punto); fila.appendChild(txt);
+      if (j.rol === "piloto") {
+        var ins = document.createElement("span");
+        ins.className = "insignia"; ins.textContent = "MARIO AIRLINES";
+        fila.appendChild(ins);
+      }
       lista.appendChild(fila);
     });
     if (!pilotos.length) lista.innerHTML = '<p class="sutil">Entrando en la pista…</p>';
     $("contadorPilotos").textContent = pilotos.length + (pilotos.length === 1 ? " piloto" : " pilotos");
+
+    var zr2 = $("zonaRol");
+    if (esMario()) {
+      var quiero = miRol === "piloto";
+      if (zr2.dataset.modo !== String(quiero)) {
+        zr2.dataset.modo = String(quiero);
+        zr2.innerHTML = '<button class="secundario" id="btnRol" style="width:100%">' +
+          (quiero ? "Volver a correr en coche" : "Pilotar el avión MARIO AIRLINES") + "</button>";
+        $("btnRol").onclick = function () {
+          miRol = miRol === "piloto" ? "corredor" : "piloto";
+          publicar();
+          aplicarRol();
+          zr2.dataset.modo = "";
+          pintarPaneles();
+        };
+      }
+    } else if (zr2.innerHTML) { zr2.innerHTML = ""; zr2.dataset.modo = ""; }
 
     var zona = $("zonaSalida");
     if (soyAnfitrion) {
@@ -896,9 +1291,12 @@
       zona.innerHTML = '<p class="sutil centro">El anfitrión da la salida.</p>';
       zona.dataset.modo = "espera";
     }
-    if (enLocal) $("notaLobby").textContent = "Sin almacenamiento compartido: corres en local. Publica esta página para jugar con más gente.";
+    $("btnEnlace").classList.toggle("oculto", enLocal);
+    if (enLocal) $("notaLobby").textContent = "Modo local: corres tú solo.";
+    else if (esMario()) $("notaLobby").textContent = "Mario: puedes dejar el coche y salir a volar. Tus misiles frenan a quien alcances.";
+    else $("notaLobby").textContent = "Pasa el código a quien quieras que corra contigo.";
 
-    var clas = pilotos.filter(function (j) { return j.ronda === sala.ronda; }).sort(function (a, b) {
+    var clas = pilotos.filter(function (j) { return j.ronda === sala.ronda && j.rol !== "piloto"; }).sort(function (a, b) {
       if (a.terminado && b.terminado) return a.tiempo - b.tiempo;
       if (a.terminado) return -1;
       if (b.terminado) return 1;
@@ -938,14 +1336,17 @@
     }
   }
 
-  function darSalida() {
-    pendiente = { estado: "carrera", ronda: (sala ? sala.ronda : 0) + 1 };
-    sincronizar();
+  function cambiarMeta(estado) {
+    var r = (sala ? sala.ronda : 0) + 1;
+    if (enLocal) {
+      sala.estado = estado; sala.ronda = r;
+      alCambiarSala(); pintarPaneles();
+      return;
+    }
+    if (refMeta) refMeta.update({ estado: estado, ronda: r });
   }
-  function volverBoxes() {
-    pendiente = { estado: "sala", ronda: (sala ? sala.ronda : 0) + 1 };
-    sincronizar();
-  }
+  function darSalida() { cambiarMeta("carrera"); }
+  function volverBoxes() { cambiarMeta("sala"); }
 
   /* --------------------------- entrar y salir ------------------------- */
   function avisar(txt) { $("avisoInicio").textContent = txt || ""; }
@@ -962,10 +1363,11 @@
       mundo = montarEscena($("lienzo"));
       arrancarMotor();
     }
-    reinicio++;
     redimensionar();
     $("cargando").classList.add("oculto");
-    bucleSync();
+    pintarRed();
+    conectarSala(c);
+    buclePublicar();
   }
 
   $("btnCrear").onclick = function () {
@@ -973,18 +1375,24 @@
     var n = $("nombre").value.trim();
     if (!n) return avisar("Escribe tu nombre de piloto.");
     yo.nombre = n;
+    guardarPerfil(n);
     avisar("");
-    almacen.set(PERFIL, JSON.stringify({ nombre: n, color: yo.color }), false).catch(function () {});
     var c = nuevoCodigo();
-    var intento = 0;
-    var probar = function () {
-      return leerSala(c).then(function (hay) {
-        if (hay && intento++ < 6) { c = nuevoCodigo(); return probar(); }
-        pendiente = { anfitrion: yo.id, estado: "sala", ronda: 0 };
-        entrarEnSala(c);
+    if (enLocal) { entrarEnSala(c); return; }
+    avisar("Creando sala…");
+    db.ref("salas/" + c + "/meta").once("value").then(function (snap) {
+      if (snap.exists()) c = nuevoCodigo();
+      return db.ref("salas/" + c + "/meta").set({
+        estado: "sala", ronda: 0, anfitrion: yo.id,
+        creada: firebase.database.ServerValue.TIMESTAMP
       });
-    };
-    probar();
+    }).then(function () {
+      avisar("");
+      $("btnEnlace").textContent = "Copiar enlace de invitación";
+      entrarEnSala(c);
+    }).catch(function (err) {
+      avisar("No se pudo crear la sala: " + err.message);
+    });
   };
 
   $("btnEntrar").onclick = function () {
@@ -994,31 +1402,25 @@
     var c = $("entradaCodigo").value.trim().toUpperCase();
     if (c.length !== 4) return avisar("El código tiene 4 caracteres.");
     yo.nombre = n;
-    almacen.set(PERFIL, JSON.stringify({ nombre: n, color: yo.color }), false).catch(function () {});
-    leerSala(c).then(function (existe) {
-      if (!existe) return avisar("No hay ninguna sala con el código " + c + ".");
+    guardarPerfil(n);
+    if (enLocal) return avisar("Sin base de datos configurada no se puede entrar en salas de otros.");
+    avisar("Buscando la sala…");
+    db.ref("salas/" + c + "/meta").once("value").then(function (snap) {
+      if (!snap.exists()) return avisar("No existe la sala " + c + ". Comprueba que el anfitrión la tenga abierta y que los dos entréis por la misma dirección web.");
       avisar("");
       entrarEnSala(c);
+    }).catch(function (err) {
+      avisar("Error de conexión: " + err.message);
     });
   };
 
   $("btnSalir").onclick = function () {
-    var c = codigo;
-    codigo = null;
-    clearTimeout(timerSync);
-    if (c) {
-      leerSala(c).then(function (s) {
-        if (!s) return;
-        delete s.jugadores[yo.id];
-        if (s.anfitrion === yo.id) {
-          var orden = Object.keys(s.jugadores).map(function (k) { return s.jugadores[k]; })
-            .sort(function (a, b) { return a.entro - b.entro; });
-          s.anfitrion = orden.length ? orden[0].id : null;
-        }
-        return guardarSala(s);
-      }).catch(function () {});
-    }
-    sala = null; rondaLocal = -1; vista = "inicio";
+    clearTimeout(timerPub);
+    if (refYo) { try { refYo.onDisconnect().cancel(); refYo.remove(); } catch (e) {} }
+    if (refMeta) refMeta.off();
+    if (refJug) refJug.off();
+    refSala = refMeta = refJug = refYo = null;
+    codigo = null; sala = null; rondaLocal = -1; vista = "inicio";
     ponerFase("lobby");
     $("pista").classList.add("oculto");
     $("inicio").classList.remove("oculto");
@@ -1045,11 +1447,66 @@
     b.addEventListener("pointercancel", off);
   });
 
-  almacen.get(PERFIL, false).then(function (r) {
-    var p = JSON.parse(r.value);
-    if (p.nombre) $("nombre").value = p.nombre;
-    if (p.color) yo.color = p.color;
-  }).catch(function () {});
+  function pintarConfig() {
+    $("config").classList.toggle("oculto", !enLocal);
+    $("zonaJuego").classList.toggle("oculto", enLocal);
+    if (!enLocal && salaInvitada) {
+      $("entradaCodigo").value = salaInvitada;
+      avisar("Te han invitado a la sala " + salaInvitada + ". Escribe tu nombre y pulsa Entrar en sala.");
+    }
+    pintarRed();
+  }
+
+  $("btnCfg").onclick = function () {
+    var txt = $("cfgTexto").value;
+    var cfg = cfgDesdeTexto(txt);
+    var av = $("cfgAviso");
+    if (!cfg.apiKey) { av.style.color = "#FF5A3C"; av.textContent = "No encuentro la apiKey en lo que has pegado. Copia el bloque entero, con las comillas."; return; }
+    if (!cfg.databaseURL) { av.style.color = "#FF5A3C"; av.textContent = "Falta databaseURL. Entra en Realtime Database y copia la dirección que sale arriba (termina en firebasedatabase.app), y pégala junto a lo demás."; return; }
+    av.style.color = "#8FA5B5"; av.textContent = "Probando la conexión…";
+    var err = iniciarFirebase(cfg);
+    if (err) { av.style.color = "#FF5A3C"; av.textContent = err; return; }
+    probarReglas(function (problema) {
+      if (problema) { av.style.color = "#FF5A3C"; av.textContent = problema; return; }
+      recordarCfg(cfg);
+      av.style.color = "#7BE04F";
+      av.textContent = "Conectado. Ya puedes crear una sala.";
+      pintarConfig();
+    });
+  };
+
+  $("btnSolo").onclick = function () {
+    enLocal = true;
+    $("config").classList.add("oculto");
+    $("zonaJuego").classList.remove("oculto");
+    avisar("Modo local: corres tú solo.");
+  };
+
+  $("btnEnlace").onclick = function () {
+    var url = enlaceInvitacion(codigo);
+    var ok = function () { $("btnEnlace").textContent = "Enlace copiado, pásaselo a tu amigo"; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(ok, function () { window.prompt("Copia este enlace:", url); });
+    } else {
+      window.prompt("Copia este enlace:", url);
+    }
+  };
+
+  pintarConfig();
+  if (!enLocal) {
+    probarReglas(function (problema) {
+      if (problema) avisar(problema);
+      else if (!salaInvitada) avisar("");
+    });
+  }
+
+  (function () {
+    var p = cargarPerfil();
+    if (p) {
+      if (p.nombre) $("nombre").value = p.nombre;
+      if (p.color) yo.color = p.color;
+    }
+  })();
 
   /* ============================== motor 3D ============================ */
   function redimensionar() {
@@ -1067,6 +1524,9 @@
     var luces = mundo.luces, pads = mundo.pads, humo = mundo.humo, confeti = mundo.confeti;
     var huellas = mundo.huellas, rumboEn = mundo.rumboEn;
     var avion = mundo.avion, misiles = mundo.misiles, explosiones = mundo.explosiones;
+    var sol = mundo.sol;
+    var avionYo = crearAvion(); avionYo.visible = false; scene.add(avionYo);
+    var penal = 0;
 
     var miCoche = crearCoche(yo.color);
     scene.add(miCoche);
@@ -1091,6 +1551,41 @@
       coche.alt = p.y; coche.fuera = false; coche.turbo = 0; coche.ultimoPad = -1;
     }
     colocarEnParrilla();
+
+    function colocarAvion() {
+      var i = (coche.idx + 40) % N;
+      var p = muestras[i];
+      pil.x = p.x; pil.y = p.y + 95; pil.z = p.z;
+      pil.yaw = rumboEn(i); pil.pitch = 0; pil.roll = 0; pil.vel = 82;
+      pil.espera = 0; pil.objetivo = null;
+    }
+
+    function posicionDe(id) {
+      if (!id) return null;
+      if (id === yo.id) return miRol === "piloto" ? avionYo.position : coche.pos;
+      var r = remotos[id];
+      return r ? r.mesh.position : null;
+    }
+
+    function penalizar() {
+      penal = 1.7;
+      coche.vLong *= 0.42;
+      coche.vLat += (Math.random() - 0.5) * 12;
+      sacudidaExtra = 2.4;
+      flash("¡IMPACTO!", "#FF5A3C");
+      if (audio) audio.boom(0.55);
+    }
+
+    function lanzarGuiado(x, y, z, objId) {
+      var libre = null, k;
+      for (k = 0; k < misiles.length; k++) if (!misiles[k].activo) { libre = misiles[k]; break; }
+      if (!libre) return;
+      libre.o.set(x, y, z);
+      libre.d.set(x, y, z);
+      libre.malla.position.set(x, y, z);
+      libre.malla.visible = true;
+      libre.activo = true; libre.t = 0; libre.dur = 6; libre.guiado = true; libre.objId = objId || null;
+    }
 
     function reposicionar() {
       var p = muestras[coche.idx];
@@ -1146,6 +1641,8 @@
     var recorridoHuella = 0, prevHuella = [null, null];
     var ultimoReinicio = reinicio, faseAnterior = "lobby";
     var lucesEncendidas = -1, flashHasta = 0, confetiHasta = 0;
+    var fps = 60, bajadas = 0, ultimoAjuste = 0, calidadActual = renderer.getPixelRatio();
+    var velAnterior = 0, cabeceoCuerpo = 0;
     var ultimo = performance.now();
 
     function flash(texto, color) {
@@ -1220,7 +1717,7 @@
     function bucle() {
       requestAnimationFrame(bucle);
       var ahora = performance.now();
-      var dt = Math.min((ahora - ultimo) / 1000, 0.05);
+      var dt = Math.max(0, Math.min((ahora - ultimo) / 1000, 0.05));
       ultimo = ahora;
       if (vista !== "sala") return;
       var f = fase, a = audio;
@@ -1228,6 +1725,8 @@
       if (reinicio !== ultimoReinicio) {
         ultimoReinicio = reinicio;
         colocarEnParrilla();
+        colocarAvion();
+        penal = 0;
         introT = 0; tiempoCarrera = 0; inicioVuelta = 0;
         lucesEncendidas = -1; prevHuella = [null, null];
         huellas.limpiar();
@@ -1236,22 +1735,89 @@
         if (faseAnterior === "intro" && f === "corriendo") { tiempoCarrera = 0; inicioVuelta = 0; }
         faseAnterior = f;
       }
+      if (f === "intro") introT = Math.min(introT + dt / 4.2, 1);
+      else if (f !== "lobby") introT = 1;
 
       var gas = (teclas.ArrowUp || teclas.KeyW) ? 1 : mando.gas;
       var freno = (teclas.ArrowDown || teclas.KeyS) ? 1 : mando.freno;
       var mano = (teclas.Space || teclas.ShiftLeft) ? 1 : mando.mano;
       var giroIn = ((teclas.ArrowLeft || teclas.KeyA) ? 1 : mando.izq) - ((teclas.ArrowRight || teclas.KeyD) ? 1 : mando.der);
       var corre = f === "corriendo";
+      var m = mando;
+
+      /* ---------------------------- vuelo -------------------------------- */
+      var soyPiloto = miRol === "piloto";
+      avionYo.visible = soyPiloto && f !== "lobby";
+      miCoche.visible = !soyPiloto;
+      var fx = 0, fy = 0, fz = 1;
+      if (soyPiloto) {
+        var giroA = ((teclas.ArrowLeft || teclas.KeyA) ? 1 : m.izq) - ((teclas.ArrowRight || teclas.KeyD) ? 1 : m.der);
+        var cabeceo = ((teclas.ArrowUp || teclas.KeyW) ? 1 : m.subir) - ((teclas.ArrowDown || teclas.KeyS) ? 1 : m.bajar);
+        var turbo = ((teclas.ShiftLeft || teclas.ShiftRight) ? 1 : m.gas);
+        if (f === "corriendo" || f === "meta") {
+          pil.roll += (giroA * 0.82 - pil.roll) * Math.min(dt * 2.4, 1);
+          pil.yaw += pil.roll * 0.62 * dt;
+          pil.pitch += (cabeceo * 0.42 - pil.pitch) * Math.min(dt * 2.2, 1);
+          pil.vel += ((turbo ? 132 : 84) - pil.vel) * Math.min(dt * 0.7, 1);
+        } else {
+          pil.roll += (0 - pil.roll) * Math.min(dt * 2, 1);
+          pil.pitch += (0 - pil.pitch) * Math.min(dt * 2, 1);
+        }
+        var cp = Math.cos(pil.pitch);
+        fx = Math.sin(pil.yaw) * cp; fy = Math.sin(pil.pitch); fz = Math.cos(pil.yaw) * cp;
+        pil.x += fx * pil.vel * dt; pil.y += fy * pil.vel * dt; pil.z += fz * pil.vel * dt;
+        avionYo.position.set(pil.x, pil.y, pil.z);
+        var sueloAqui = muestras[cercano(avionYo.position, coche.idx)].y;
+        if (pil.y < sueloAqui + 22) { pil.y = sueloAqui + 22; if (pil.pitch < 0) pil.pitch += dt * 0.9; }
+        if (pil.y > 420) { pil.y = 420; if (pil.pitch > 0) pil.pitch -= dt * 0.9; }
+        var distC = Math.sqrt(pil.x * pil.x + pil.z * pil.z);
+        if (distC > 900) {
+          var dentro = Math.atan2(-pil.x, -pil.z);
+          var difA = ((dentro - pil.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          pil.yaw += difA * Math.min(dt * 0.8, 1);
+        }
+        avionYo.position.set(pil.x, pil.y, pil.z);
+        avionYo.rotation.order = "YXZ";
+        avionYo.rotation.set(-pil.pitch, pil.yaw, pil.roll);
+        if (avionYo.userData.baliza) avionYo.userData.baliza.visible = (Math.floor(ahora / 500) % 2) === 0;
+
+        var mejorObj = null, mejorDot = 0.55;
+        for (var oid in remotos) {
+          var ro = remotos[oid];
+          if (ro.tipo === "piloto") continue;
+          var dxo = ro.mesh.position.x - pil.x, dyo = ro.mesh.position.y - pil.y, dzo = ro.mesh.position.z - pil.z;
+          var lo = Math.sqrt(dxo * dxo + dyo * dyo + dzo * dzo) || 1;
+          var dotO = (dxo * fx + dyo * fy + dzo * fz) / lo;
+          if (dotO > mejorDot && lo < 700) { mejorDot = dotO; mejorObj = oid; }
+        }
+        pil.objetivo = mejorObj;
+
+        pil.espera = Math.max(0, pil.espera - dt);
+        if ((teclas.Space ? 1 : m.fuego) && pil.espera <= 0 && corre) {
+          pil.espera = 0.8;
+          pil.tiroN++;
+          var bx = pil.x - fx * 7, by = pil.y - 3, bz = pil.z - fz * 7;
+          lanzarGuiado(bx, by, bz, pil.objetivo);
+          publicarTiro(bx, by, bz, pil.objetivo);
+          if (audio) audio.pitido(1500, 0.2, 0.06);
+        }
+        $("pilAlt").textContent = Math.round(pil.y - sueloAqui) + " m";
+        $("pilVel").textContent = Math.round(pil.vel * 3.6) + " km/h";
+        var jObj = (pil.objetivo && sala && sala.jugadores) ? sala.jugadores[pil.objetivo] : null;
+        $("objetivoNom").textContent = jObj ? jObj.nombre : "ninguno";
+        $("pilCarga").textContent = pil.espera > 0 ? "recargando" : "listo";
+      }
 
       if (coche.turbo > 0) coche.turbo = Math.max(0, coche.turbo - dt);
-      var techo = (coche.fuera ? VEL_MAX * 0.45 : VEL_MAX) * (coche.turbo > 0 ? 1.32 : 1);
+      if (penal > 0) penal = Math.max(0, penal - dt);
+      var techo = (coche.fuera ? VEL_MAX * 0.45 : VEL_MAX) * (coche.turbo > 0 ? 1.32 : 1) * (penal > 0 ? 0.5 : 1);
 
       if (f === "intro" || f === "lobby") {
         coche.vLong = 0; coche.vLat = 0; coche.giro = 0;
-      } else if (corre) {
+      } else if (corre && !soyPiloto) {
         if (gas) coche.vLong += (coche.turbo > 0 ? 52 : 34) * Math.max(0, 1 - coche.vLong / techo) * dt;
         if (freno) coche.vLong -= (coche.vLong > 0 ? 46 : 18) * dt;
-        coche.vLong -= coche.vLong * (coche.fuera ? 1.6 : 0.1) * dt;
+        coche.vLong -= coche.vLong * (coche.fuera ? 1.6 : (penal > 0 ? 1.1 : 0.1)) * dt;
         if (coche.vLong > techo) coche.vLong -= (coche.vLong - techo) * 2.5 * dt;
         if (coche.vLong < -11) coche.vLong = -11;
         coche.giro += (giroIn - coche.giro) * Math.min(dt * 9, 1);
@@ -1329,11 +1895,21 @@
           if (coche.vuelta === VUELTAS) flash("ÚLTIMA VUELTA", "#FF5A3C");
           if (a) a.pitido(1180, 0.12, 0.12);
         }
-        if (coche.vuelta > VUELTAS) {
+        if (soyPiloto && sala && sala.jugadores) {
+          var hayC = 0, faltan = 0;
+          for (var idp in sala.jugadores) {
+            var jp = sala.jugadores[idp];
+            if (jp.rol === "piloto" || jp.ronda !== sala.ronda) continue;
+            hayC++;
+            if (!jp.terminado) faltan++;
+          }
+          if (hayC > 0 && faltan === 0) { mis.terminado = true; ponerFase("meta"); publicar(); }
+        }
+        if (!soyPiloto && coche.vuelta > VUELTAS) {
           mis.terminado = true; mis.tiempo = tiempoCarrera;
           confetiHasta = ahora + 2600;
           ponerFase("meta");
-          sincronizar();
+          publicar();
         }
       }
 
@@ -1342,6 +1918,14 @@
       miCoche.position.copy(coche.pos);
       miCoche.rotation.order = "YXZ";
       miCoche.rotation.set(-pendienteY, coche.rumbo + angDeriva * 0.35, -coche.giro * rapidez * 0.12);
+      var acelLong = (coche.vLong - velAnterior) / Math.max(dt, 0.001);
+      velAnterior = coche.vLong;
+      var objCab = Math.max(-0.075, Math.min(0.075, -acelLong * 0.0035));
+      cabeceoCuerpo += (objCab - cabeceoCuerpo) * Math.min(dt * 7, 1);
+      if (miCoche.userData.cuerpo) {
+        miCoche.userData.cuerpo.rotation.x = cabeceoCuerpo;
+        miCoche.userData.cuerpo.rotation.z = -coche.giro * rapidez * 0.05;
+      }
       miCoche.userData.pivotes.forEach(function (p) { p.rotation.y = coche.giro * 0.45 - angDeriva * 0.5; });
       var giroRueda = (coche.vLong * dt) / 0.48;
       miCoche.userData.ruedas.forEach(function (r) { r.rotation.x -= giroRueda; });
@@ -1391,22 +1975,48 @@
           if (j.id === yo.id) continue;
           vivos[j.id] = true;
           var r = remotos[j.id];
+          var tipoJ = j.rol === "piloto" ? "piloto" : "coche";
+          if (r && r.tipo !== tipoJ) { scene.remove(r.mesh); delete remotos[j.id]; r = null; }
           if (!r) {
-            var malla = crearCoche(j.color || "#cccccc");
+            var malla = tipoJ === "piloto" ? crearAvion() : crearCoche(j.color || "#cccccc");
             scene.add(malla);
-            r = remotos[j.id] = { mesh: malla, color: j.color || "#cccccc", mostrado: j.total || 0, objetivo: j.total || 0, sello: -1, vel: 0, off: 0 };
+            r = remotos[j.id] = {
+              mesh: malla, tipo: tipoJ, color: j.color || "#cccccc",
+              mostrado: j.total || 0, objetivo: j.total || 0, sello: -1, vel: 0, off: 0,
+              px: j.px || 0, py: j.py || 60, pz: j.pz || 0, ryaw: j.ryaw || 0, rpit: 0, rrol: 0,
+              yawVis: j.ryaw || 0, tiroN: j.tiroN || 0
+            };
+            if (tipoJ === "piloto") malla.position.set(r.px, r.py, r.pz);
           }
           if (j.sello !== r.sello) {
             r.sello = j.sello; r.objetivo = j.total || 0; r.vel = j.vel || 0; r.off = j.off || 0;
-            if (Math.abs(r.objetivo - r.mostrado) > 0.25) r.mostrado = r.objetivo;
+            if (Math.abs(r.objetivo - r.mostrado) > 0.12) r.mostrado = r.objetivo;
+          }
+          if (tipoJ === "piloto") {
+            r.px = j.px || 0; r.py = j.py || 60; r.pz = j.pz || 0;
+            r.ryaw = j.ryaw || 0; r.rpit = j.rpit || 0; r.rrol = j.rrol || 0;
+            if (j.tiroN && j.tiroN !== r.tiroN) {
+              r.tiroN = j.tiroN;
+              lanzarGuiado(j.tiroX || r.px, j.tiroY || r.py, j.tiroZ || r.pz, j.tiroObj || null);
+            }
           }
         }
       }
       for (var rid in remotos) {
         var rr = remotos[rid];
         if (!vivos[rid]) { scene.remove(rr.mesh); delete remotos[rid]; continue; }
+        if (!rr.mesh) continue;
+        if (rr.tipo === "piloto") {
+          rr.mesh.position.lerp(vAux.set(rr.px, rr.py, rr.pz), 1 - Math.exp(-dt * 6));
+          var dyaw = ((rr.ryaw - rr.yawVis + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          rr.yawVis += dyaw * (1 - Math.exp(-dt * 6));
+          rr.mesh.rotation.order = "YXZ";
+          rr.mesh.rotation.set(-rr.rpit, rr.yawVis, rr.rrol);
+          if (rr.mesh.userData.baliza) rr.mesh.userData.baliza.visible = (Math.floor(ahora / 500) % 2) === 0;
+          continue;
+        }
         rr.objetivo += (rr.vel / largo) * dt;
-        rr.mostrado += (rr.objetivo - rr.mostrado) * (1 - Math.exp(-dt * 4));
+        rr.mostrado += (rr.objetivo - rr.mostrado) * (1 - Math.exp(-dt * 9));
         var uu = ((rr.mostrado % 1) + 1) % 1;
         var ii = Math.min(N - 1, Math.floor(uu * N));
         var pp = muestras[ii], ll = lados[ii];
@@ -1418,7 +2028,7 @@
 
       /* aviones MARIO */
       sacudidaExtra = Math.max(0, sacudidaExtra - dt * 2.2);
-      if (corre) {
+      if (corre && !hayPiloto()) {
         if (!av.activo) {
           av.prox -= dt;
           if (av.prox <= 0) lanzarAvion(frenteV, derechaV);
@@ -1446,6 +2056,29 @@
         var ms = misiles[k];
         if (!ms.activo) continue;
         ms.t += dt;
+        if (ms.guiado) {
+          var blanco = posicionDe(ms.objId);
+          if (blanco) ms.d.set(blanco.x, blanco.y + 0.7, blanco.z);
+          var vx = ms.d.x - ms.malla.position.x, vy = ms.d.y - ms.malla.position.y, vz = ms.d.z - ms.malla.position.z;
+          var lm = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+          var avance = Math.min(lm, 145 * dt);
+          ms.malla.position.x += (vx / lm) * avance;
+          ms.malla.position.y += (vy / lm) * avance;
+          ms.malla.position.z += (vz / lm) * avance;
+          ms.malla.rotation.order = "YXZ";
+          ms.malla.rotation.set(-Math.asin(Math.max(-1, Math.min(1, vy / lm))), Math.atan2(vx / lm, vz / lm), 0);
+          if (Math.random() < 0.9) {
+            humo.emitir(ms.malla.position.x, ms.malla.position.y, ms.malla.position.z,
+              (Math.random() - 0.5), 0.7, (Math.random() - 0.5), 0.45);
+          }
+          if (lm < 5 || ms.t > ms.dur) {
+            ms.activo = false; ms.malla.visible = false; ms.guiado = false;
+            explotar(ms.malla.position.x, ms.malla.position.y, ms.malla.position.z);
+            if (ms.objId === yo.id && miRol !== "piloto" && lm < 7) penalizar();
+            ms.objId = null;
+          }
+          continue;
+        }
         var kM = ms.t / ms.dur;
         if (kM >= 1) {
           ms.activo = false; ms.malla.visible = false;
@@ -1487,7 +2120,20 @@
       }
 
       /* camara */
-      if (f === "lobby") {
+      if (soyPiloto && f !== "lobby") {
+        objetivoCam.set(pil.x - fx * 46, pil.y - fy * 46 + 13, pil.z - fz * 46);
+        camera.position.lerp(objetivoCam, 1 - Math.exp(-dt * 4.5));
+        vAux.set(pil.x + fx * 90, pil.y + fy * 90, pil.z + fz * 90);
+        miradaCam.lerp(vAux, 1 - Math.exp(-dt * 6));
+        vAux2.set(fx, fy, fz).normalize();
+        arribaCam.set(0, 1, 0).applyAxisAngle(vAux2, pil.roll * 0.55);
+        if (arribaCam.y < 0.2) arribaCam.set(0, 1, 0);
+        camera.up.copy(arribaCam);
+        camera.lookAt(miradaCam);
+        var fovP = 62 + Math.max(0, pil.vel - 84) * 0.16;
+        camera.fov += (fovP - camera.fov) * Math.min(dt * 3, 1);
+        camera.updateProjectionMatrix();
+      } else if (f === "lobby") {
         paseo = (paseo + dt * 0.014) % 1;
         var il = Math.floor(paseo * N) % N;
         var pl = muestras[il], lll = lados[il];
@@ -1498,7 +2144,6 @@
         camera.fov += (54 - camera.fov) * Math.min(dt * 2, 1);
         camera.updateProjectionMatrix();
       } else {
-        if (f === "intro") introT = Math.min(introT + dt / 4.2, 1); else introT = 1;
         var e = 1 - Math.pow(1 - introT, 3);
         var dist = 11, alto = 4.1;
         if (camara === "cabina") { dist = -0.4; alto = 1.55; }
@@ -1563,6 +2208,7 @@
       $("aguja").style.transform = "rotate(" + (-120 + Math.min(rapidez, 1) * 240) + "deg)";
       $("capaVel").style.opacity = String(Math.max(0, rapidez - 0.4) * 1.2);
       $("capaTurbo").style.opacity = coche.turbo > 0 ? "0.55" : "0";
+      $("capaImpacto").style.opacity = penal > 0 ? String(Math.min(0.75, penal * 0.5)) : "0";
       if (flashHasta && ahora > flashHasta) { $("flash").style.opacity = "0"; flashHasta = 0; }
       if (sala && sala.jugadores) {
         var orden2 = [];
@@ -1596,14 +2242,47 @@
       ctxMini.fillRect(cMeta[0] - 2, cMeta[1] - 2, 4, 4);
       for (var rid2 in remotos) {
         var r2 = remotos[rid2];
+        if (r2.tipo === "piloto") {
+          var cp2 = aMini(r2.mesh.position);
+          ctxMini.fillStyle = "#F2EFE6";
+          ctxMini.beginPath();
+          ctxMini.moveTo(cp2[0], cp2[1] - 5); ctxMini.lineTo(cp2[0] + 4, cp2[1] + 4);
+          ctxMini.lineTo(cp2[0] - 4, cp2[1] + 4); ctxMini.closePath(); ctxMini.fill();
+          continue;
+        }
         var u2 = ((r2.mostrado % 1) + 1) % 1;
         var c2 = aMini(muestras[Math.min(N - 1, Math.floor(u2 * N))]);
         ctxMini.fillStyle = r2.color;
         ctxMini.beginPath(); ctxMini.arc(c2[0], c2[1], 3, 0, 6.3); ctxMini.fill();
       }
-      var cYo = aMini(coche.pos);
-      ctxMini.fillStyle = yo.color;
-      ctxMini.beginPath(); ctxMini.arc(cYo[0], cYo[1], 4, 0, 6.3); ctxMini.fill();
+      var cYo = aMini(soyPiloto ? avionYo.position : coche.pos);
+      ctxMini.fillStyle = soyPiloto ? "#5AFFDC" : yo.color;
+      if (soyPiloto) {
+        ctxMini.beginPath();
+        ctxMini.moveTo(cYo[0], cYo[1] - 6); ctxMini.lineTo(cYo[0] + 5, cYo[1] + 5);
+        ctxMini.lineTo(cYo[0] - 5, cYo[1] + 5); ctxMini.closePath(); ctxMini.fill();
+      } else {
+        ctxMini.beginPath(); ctxMini.arc(cYo[0], cYo[1], 4, 0, 6.3); ctxMini.fill();
+      }
+
+      if (sol.castShadow) {
+        var focoX = soyPiloto ? pil.x : coche.pos.x;
+        var focoY = soyPiloto ? pil.y : coche.alt;
+        var focoZ = soyPiloto ? pil.z : coche.pos.z;
+        sol.position.set(focoX - 90, focoY + 95, focoZ + 62);
+        sol.target.position.set(focoX, focoY, focoZ);
+        sol.target.updateMatrixWorld();
+      }
+
+      /* resolución adaptativa: si baja el rendimiento, se rebaja la nitidez */
+      fps += ((1 / Math.max(dt, 0.001)) - fps) * 0.05;
+      if (fps < 42 && bajadas < 2 && ahora - ultimoAjuste > 4000) {
+        ultimoAjuste = ahora;
+        bajadas++;
+        calidadActual = Math.max(0.75, calidadActual - 0.25);
+        renderer.setPixelRatio(calidadActual);
+        redimensionar();
+      }
 
       renderer.render(scene, camera);
     }
