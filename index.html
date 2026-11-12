@@ -79,6 +79,30 @@
 
 <div id="err"></div>
 
+<!-- Vigía de arranque: convierte cualquier fallo silencioso en un mensaje en pantalla -->
+<script>
+window.__fatal = function(msg){
+  var p=document.getElementById('pct'), e=document.getElementById('err');
+  if(p){ p.style.color='#e86b5a'; p.textContent='ERROR AL ARRANCAR'; }
+  if(e){ e.style.opacity='1'; e.style.color='#ffb57a'; e.innerHTML='⛔ '+String(msg); }
+  console.error('[UAV]', msg);
+};
+window.addEventListener('error', function(ev){
+  var m = ev.message || (ev.error && ev.error.message) ||
+          (ev.target && ev.target.src ? ('No se pudo cargar '+ev.target.src) : 'Error');
+  window.__fatal(m);
+}, true);
+window.addEventListener('unhandledrejection', function(ev){
+  window.__fatal((ev.reason && ev.reason.message) || ev.reason || 'promesa rechazada');
+});
+window.__started=false;
+setTimeout(function(){
+  if(!window.__started){
+    window.__fatal('El motor no arrancó. Lo más probable: no se descargaron las librerías de Three.js — sin internet, una extensión/red que bloquea cdn.jsdelivr.net, o un navegador antiguo sin "import maps". Abre la consola (F12 → Console) y dime qué pone en rojo.');
+  }
+}, 7000);
+</script>
+
 <script type="importmap">
 {
   "imports": {
@@ -100,6 +124,10 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// El módulo ha arrancado: desactiva el vigía de "no cargó"
+window.__started = true;
+const fatal = (m)=>{ window.__fatal ? window.__fatal(m && m.message ? m.message : m) : console.error(m); };
 
 /* ============================================================
    CONFIG  — toca aquí para ajustar calidad / rendimiento
@@ -269,39 +297,43 @@ function groundNormal(x,z){
 
 /* ============================================================
    MALLA DEL TERRENO  (con vertex colors: arena/roca/carretera/bosque)
+   Se construye dentro de boot() para no bloquear la pantalla de carga.
    ============================================================ */
-const SEG = CONFIG.quality==='high' ? 300 : 200;
-const geo = new THREE.PlaneGeometry(TERRAIN, TERRAIN, SEG, SEG);
-geo.rotateX(-Math.PI/2);
-const pos = geo.attributes.position;
-const colors = new Float32Array(pos.count*3);
-const cSand=new THREE.Color(0xb8a06a), cDirt=new THREE.Color(0x8c7346),
-      cRock=new THREE.Color(0x6f6656), cRoad=new THREE.Color(0x4f473b),
-      cForest=new THREE.Color(0x5f6b3c), tmpC=new THREE.Color();
-for(let i=0;i<pos.count;i++){
-  const x=pos.getX(i), z=pos.getZ(i);
-  const h=terrainHeight(x,z);
-  pos.setY(i,h);
-  const n=groundNormal(x,z);
-  const slope=1-n.y;                 // 0 plano … 1 vertical
-  const d=roadDist(x,z);
-  const rf=1-smooth(ROAD_HALF,ROAD_HALF+ROAD_SHOULDER,d);
-  const ff=forestFactor(x,z);
-  tmpC.copy(cSand);
-  tmpC.lerp(cDirt, smooth(0,18,h)*0.6 + hash(x*3,z*3)*0.12);
-  tmpC.lerp(cRock, smooth(0.28,0.6,slope));
-  tmpC.lerp(cForest, ff*0.8*(1-rf));
-  tmpC.lerp(cRoad, rf);
-  const tint=0.9+hash(x*1.7,z*2.3)*0.2;   // grano de color
-  colors[i*3]=tmpC.r*tint; colors[i*3+1]=tmpC.g*tint; colors[i*3+2]=tmpC.b*tint;
+let terrain = null;
+function buildTerrain(){
+  const SEG = CONFIG.quality==='high' ? 220 : 140;
+  const geo = new THREE.PlaneGeometry(TERRAIN, TERRAIN, SEG, SEG);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count*3);
+  const cSand=new THREE.Color(0xb8a06a), cDirt=new THREE.Color(0x8c7346),
+        cRock=new THREE.Color(0x6f6656), cRoad=new THREE.Color(0x4f473b),
+        cForest=new THREE.Color(0x5f6b3c), tmpC=new THREE.Color();
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i), z=pos.getZ(i);
+    const h=terrainHeight(x,z);
+    pos.setY(i,h);
+    const n=groundNormal(x,z);
+    const slope=1-n.y;                 // 0 plano … 1 vertical
+    const d=roadDist(x,z);
+    const rf=1-smooth(ROAD_HALF,ROAD_HALF+ROAD_SHOULDER,d);
+    const ff=forestFactor(x,z);
+    tmpC.copy(cSand);
+    tmpC.lerp(cDirt, smooth(0,18,h)*0.6 + hash(x*3,z*3)*0.12);
+    tmpC.lerp(cRock, smooth(0.28,0.6,slope));
+    tmpC.lerp(cForest, ff*0.8*(1-rf));
+    tmpC.lerp(cRoad, rf);
+    const tint=0.9+hash(x*1.7,z*2.3)*0.2;   // grano de color
+    colors[i*3]=tmpC.r*tint; colors[i*3+1]=tmpC.g*tint; colors[i*3+2]=tmpC.b*tint;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  const terrainMat = new THREE.MeshStandardMaterial({
+    vertexColors:true, roughness:0.97, metalness:0.0, flatShading:false });
+  terrain = new THREE.Mesh(geo, terrainMat);
+  terrain.receiveShadow = true;
+  scene.add(terrain);
 }
-geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
-geo.computeVertexNormals();
-const terrainMat = new THREE.MeshStandardMaterial({
-  vertexColors:true, roughness:0.97, metalness:0.0, flatShading:false });
-const terrain = new THREE.Mesh(geo, terrainMat);
-terrain.receiveShadow = true;
-scene.add(terrain);
 
 /* ============================================================
    CARGADOR DE MODELOS (tolerante a fallos)
@@ -349,7 +381,14 @@ const bar=document.querySelector('#bar > i'), pct=document.getElementById('pct')
 const npcs=[], vehicles=[], mixers=[];
 const dustEmitters=[];
 
+const nextFrame = ()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
 async function boot(){
+  pct.textContent='CONSTRUYENDO TERRENO';
+  await nextFrame();              // deja repintar la pantalla antes del cálculo pesado
+  buildTerrain();
+  bar.style.width='10%';
+
   const queue = ['terrorist','soldier','jeep','houseA','houseB','houseCluster','sandbags','blockpost','grass'];
   if(CONFIG.loadNissan) queue.push('nissan');
   if(CONFIG.loadStreet) queue.push('street');
@@ -359,12 +398,14 @@ async function boot(){
   for(const k of queue){
     pct.textContent='CARGANDO '+CONFIG.models[k].toUpperCase();
     await loadGLB(k);
-    done++; bar.style.width=Math.round(done/queue.length*85)+'%';
+    done++; bar.style.width=(10+Math.round(done/queue.length*80))+'%';
   }
 
   pct.textContent='CONSTRUYENDO ESCENA';
+  await nextFrame();
   buildWorld();
   bar.style.width='100%';
+  pct.style.color='#9fb08f';
   pct.textContent='LISTO';
   startBtn.style.display='inline-block';
 }
@@ -891,10 +932,12 @@ startBtn.addEventListener('click',()=>{
   document.getElementById('hud').classList.add('on');
   renderer.domElement.requestPointerLock();
 });
-initDust();
-setupComposer();
-boot();
-animate();
+try {
+  initDust();
+  setupComposer();
+  boot().catch(fatal);
+  animate();
+} catch(e){ fatal(e); }
 </script>
 </body>
 </html>
